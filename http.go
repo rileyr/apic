@@ -38,8 +38,8 @@ type HTTPClient struct {
 func NewHTTPClient(root string, opts ...HTTPOption) *HTTPClient {
 	c := &HTTPClient{
 		root:    root,
-		encoder: defaultEncoder(),
-		decoder: defaultDecoder(),
+		encoder: defaultEncoder,
+		decoder: defaultDecoder,
 		logger:  noLogger{},
 		client: &http.Client{
 			Timeout: time.Second * 5,

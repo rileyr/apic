@@ -36,7 +36,7 @@ func NewWSClient(endpoint string, opts ...WSOption) *WSClient {
 	w := &WSClient{
 		logger:   noLogger{},
 		endpoint: endpoint,
-		encoder:  defaultEncoder(),
+		encoder:  defaultEncoder,
 		handler:  func(_ []byte) error { return nil },
 		onOpen:   func(_ *WSClient) error { return nil },
 		onClose:  func(_ *WSClient) error { return nil },
@@ -59,7 +59,6 @@ func (c *WSClient) Start(ctx context.Context) error {
 		time.Sleep(time.Second)
 		c.logger.Info("reconnecting...")
 	}
-	return nil
 }
 
 func (c *WSClient) Write(ctx context.Context, obj any) error {
@@ -79,7 +78,7 @@ func (c *WSClient) run(ctx context.Context) error {
 
 	readErr := make(chan error)
 	data := make(chan []byte)
-	go reader(c.conn, data, err)
+	go reader(c.conn, data, readErr)
 
 	if err := c.onOpen(c); err != nil {
 		return err
@@ -115,7 +114,7 @@ func (c *WSClient) connect(ctx context.Context) error {
 	return nil
 }
 
-func reader(conn *websocket.Conn, data chan []byte, errs chan []byte) {
+func reader(conn *websocket.Conn, data chan []byte, errs chan error) {
 	defer close(data)
 	defer close(errs)
 	for {

@@ -31,7 +31,7 @@ func WithWSOnClose(fn func(*WSClient) error) WSOption {
 }
 
 // WithWSEncoder sets the encoder for objects written to the client
-func WithWSEncoder(fn func(obj) ([]byte, error)) WSOption {
+func WithWSEncoder(fn func(any) ([]byte, error)) WSOption {
 	return func(c *WSClient) {
 		c.encoder = fn
 	}
