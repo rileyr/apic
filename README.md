@@ -28,7 +28,7 @@ func main() {
         Foo string `yaml:"foo"`
         Bar struct {
             Biz int `yaml:"biz"`
-        } `yaml:"bar"
+        } `yaml:"bar"`
     }
 
     type response struct {
