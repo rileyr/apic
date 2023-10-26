@@ -67,6 +67,9 @@ func (c *WSClient) Write(ctx context.Context, obj any) error {
 		return err
 	}
 	c.logger.Info("send", "message", string(bts))
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	return c.conn.Write(ctx, websocket.MessageText, bts)
 }
 
