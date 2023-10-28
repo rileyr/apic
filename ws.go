@@ -52,7 +52,7 @@ func NewWSClient(endpoint string, opts ...WSOption) *WSClient {
 func (c *WSClient) Start(ctx context.Context) error {
 	for {
 		err := c.run(ctx)
-		if !c.reconnect {
+		if !c.reconnect || ctx.Err != nil {
 			return err
 		}
 		c.logger.Info("disconnected", "error", err)
