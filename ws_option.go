@@ -1,5 +1,10 @@
 package apic
 
+import (
+	"math/rand"
+	"time"
+)
+
 type WSOption func(*WSClient)
 
 // WithWSLogger sets the logger for the websocket client.
@@ -37,9 +42,28 @@ func WithWSEncoder(fn func(any) ([]byte, error)) WSOption {
 	}
 }
 
-// WithReconnect enables automatic reconnection.
-func WithReconnect() WSOption {
+// WithReconnect enables exponential backoff behavior on reconnect.
+func WithReconnectBackoff(maxBackoff time.Duration) WSOption {
 	return func(c *WSClient) {
-		c.reconnect = true
+		const (
+			minMillis = 5
+			maxMillis = 999
+		)
+		var (
+			count int
+		)
+		c.shouldReconnect = func(err error) bool {
+			count++
+			mills := rand.Intn(maxMillis-minMillis) + minMillis
+			d := time.Millisecond * time.Duration((2^count)+mills)
+			if d > maxBackoff {
+				d = maxBackoff
+			}
+			t := time.NewTicker(d)
+			c.logger.Info("reconnect backoff", "duration", d.String())
+			<-t.C
+			t.Stop()
+			return true
+		}
 	}
 }

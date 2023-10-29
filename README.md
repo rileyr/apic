@@ -1,6 +1,6 @@
 # apic
 
-api clients, because who has time for that?
+api clients, because who has time for that? this is a little library to gsd
 
 ## http
 
@@ -16,24 +16,21 @@ import(
 )
 
 func main() {
-    client := apic.NewHTTPClient(
-        "my-cool-yaml-api-root",
+    client := apic.NewHTTPClient("my-cool-api-root",
         apic.WithLogger(slog.Default()),
-        apic.WithEncoder(yaml.Marshal),
-        apic.WithDecoder(yaml.Unmarshal),
         apic.WithBefore(addAuthSignature),
     )
 
     type request struct{
-        Foo string `yaml:"foo"`
+        Foo string
         Bar struct {
-            Biz int `yaml:"biz"`
-        } `yaml:"bar"`
+            Biz int
+        }
     }
 
     type response struct {
-        Id   int    `yaml:"id"`
-        Whiz string `yaml:"whiz"`
+        Id   int
+        Whiz string
     }
 
     // blah blah imagine these are filled in:
@@ -52,5 +49,46 @@ func main() {
 func addAuthSignature(req *http.Request) error {
     req.Header.Add("AUTH", os.Getenv("SUPER_SECURE_SECRETS"))
     return nil
+}
+```
+
+## ws
+
+get that ws goin like nothing:
+```golang
+package main
+
+import(
+    "context"
+    "log/slog"
+    "sync/errgroup"
+
+    "golang.org/x/sync/errgroup"
+    "github.com/rileyr/apic"
+)
+
+func main() {
+    ws := apic.NewWSClient("ws://so-cool-ws-endpoint",
+        apic.WithWSLoger(slog.Default()),
+        apic.WithWSOnOpen(func(c *WSClient) error {
+            slog.Default().Info("we are connected!")
+            return nil
+        }),
+        apic.WithWSHandler(func(bts []byte) error {
+            slog.Default().Info("we have something!", "message", string(bts))
+            return nil
+        }),
+        apic.WithReconnectBackoff(time.Minute*5),
+    }
+
+    if err := ws.Start(context.Background()); err != nil {
+        log.Printf("fatal err: %s\n", err.Error())
+        os.Exit(1)
+    }
+
+    // or maybe the connection is feeding into a larger app,
+    // the client can be run in an errgroup easily:
+    wg, ctx := errgroup.WithContext(context.Background()) 
+    wg.Go(func() error { return ws.Start(ctx) })
 }
 ```

@@ -2,7 +2,6 @@ package apic
 
 import (
 	"context"
-	"time"
 
 	"nhooyr.io/websocket"
 )
@@ -11,7 +10,7 @@ type WSClient struct {
 	// endpoint is the server endpoint
 	endpoint string
 
-	// logger logs each message sent and received
+	// logger infos connection lifecycles, and debugs each message sent and received
 	logger Logger
 
 	// conn is the (current) underlying connection
@@ -28,18 +27,18 @@ type WSClient struct {
 
 	encoder Encoder
 
-	// reconnect makes the client reconnect on error
-	reconnect bool
+	shouldReconnect reconnectPolicy
 }
 
 func NewWSClient(endpoint string, opts ...WSOption) *WSClient {
 	w := &WSClient{
-		logger:   noLogger{},
-		endpoint: endpoint,
-		encoder:  defaultEncoder,
-		handler:  func(_ []byte) error { return nil },
-		onOpen:   func(_ *WSClient) error { return nil },
-		onClose:  func(_ *WSClient) error { return nil },
+		logger:          noLogger{},
+		endpoint:        endpoint,
+		encoder:         defaultEncoder,
+		handler:         func(_ []byte) error { return nil },
+		onOpen:          func(_ *WSClient) error { return nil },
+		onClose:         func(_ *WSClient) error { return nil },
+		shouldReconnect: func(_ error) bool { return false },
 	}
 
 	for _, opt := range opts {
@@ -49,30 +48,36 @@ func NewWSClient(endpoint string, opts ...WSOption) *WSClient {
 	return w
 }
 
+// Start runs the client until either:
+// - the context is canceled
+// - the reconnect policy returns false
 func (c *WSClient) Start(ctx context.Context) error {
 	for {
 		err := c.run(ctx)
-		if !c.reconnect || ctx.Err != nil {
+		c.logger.Info("disconnected", "error", err)
+		if !c.shouldReconnect(err) {
 			return err
 		}
-		c.logger.Info("disconnected", "error", err)
-		time.Sleep(time.Second)
 		c.logger.Info("reconnecting...")
 	}
 }
 
+// Write encodes and writes an object to the current connection.
 func (c *WSClient) Write(ctx context.Context, obj any) error {
 	bts, err := c.encoder(obj)
 	if err != nil {
 		return err
 	}
-	c.logger.Info("send", "message", string(bts))
+	c.logger.Debug("send", "message", string(bts))
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	return c.conn.Write(ctx, websocket.MessageText, bts)
 }
 
+// run connects the websocket, and runs the single connection until
+// either the connection is terminated, or the global handler returns
+// a non nil error.
 func (c *WSClient) run(ctx context.Context) error {
 	if err := c.connect(ctx); err != nil {
 		return err
@@ -95,7 +100,7 @@ func (c *WSClient) run(ctx context.Context) error {
 	for {
 		select {
 		case bts := <-data:
-			c.logger.Info("recv", "message", string(bts))
+			c.logger.Debug("recv", "message", string(bts))
 			if err := c.handler(bts); err != nil {
 				return err
 			}
@@ -107,6 +112,9 @@ func (c *WSClient) run(ctx context.Context) error {
 	}
 }
 
+// connect creates a new connection and assigns it
+// to the receiver
+// TODO: the threadsafety thing, across the whole client
 func (c *WSClient) connect(ctx context.Context) error {
 	conn, _, err := websocket.Dial(ctx, c.endpoint, nil)
 	if err != nil {
@@ -117,6 +125,7 @@ func (c *WSClient) connect(ctx context.Context) error {
 	return nil
 }
 
+// reader is a helper func to pump messages from a connection
 func reader(conn *websocket.Conn, data chan []byte, errs chan error) {
 	defer close(data)
 	defer close(errs)
@@ -129,3 +138,8 @@ func reader(conn *websocket.Conn, data chan []byte, errs chan error) {
 		data <- bts
 	}
 }
+
+// reconnectPolicy configures reconnect behavior.
+// if the function returns true, the client will
+// attempt a reconnect.
+type reconnectPolicy func(error) bool
