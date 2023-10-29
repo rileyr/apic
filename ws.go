@@ -82,6 +82,7 @@ func (c *WSClient) run(ctx context.Context) error {
 	if err := c.connect(ctx); err != nil {
 		return err
 	}
+	c.logger.Info("connected")
 	defer c.conn.Close(websocket.StatusInternalError, "app closing")
 
 	readErr := make(chan error)
@@ -97,6 +98,7 @@ func (c *WSClient) run(ctx context.Context) error {
 		}
 	}()
 
+	c.logger.Info("starting")
 	for {
 		select {
 		case bts := <-data:
