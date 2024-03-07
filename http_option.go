@@ -35,3 +35,9 @@ func WithMaxStatus(code int) HTTPOption {
 		c.maxStatus = code
 	}
 }
+
+func WithLogger(lg Logger) HTTPOption {
+	return func(c *HTTPClient) {
+		c.logger = lg
+	}
+}
