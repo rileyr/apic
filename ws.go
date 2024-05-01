@@ -2,6 +2,7 @@ package apic
 
 import (
 	"context"
+	"time"
 
 	"nhooyr.io/websocket"
 )
@@ -26,6 +27,8 @@ type WSClient struct {
 	onClose func(*WSClient) error
 
 	encoder Encoder
+
+	pingInterval time.Duration
 
 	shouldReconnect reconnectPolicy
 }
@@ -99,6 +102,20 @@ func (c *WSClient) run(ctx context.Context) error {
 	}()
 
 	c.logger.Info("starting")
+
+	pings := make(chan struct{})
+	defer close(pings)
+	if c.pingInterval != 0 {
+		go func() {
+			t := time.NewTicker(c.pingInterval)
+			defer t.Stop()
+			for {
+				<-t.C
+				pings <- struct{}{}
+			}
+		}()
+	}
+
 	for {
 		select {
 		case bts := <-data:
@@ -108,6 +125,10 @@ func (c *WSClient) run(ctx context.Context) error {
 			}
 		case err := <-readErr:
 			return err
+		case <-pings:
+			if err := c.conn.Ping(ctx); err != nil {
+				return err
+			}
 		case <-ctx.Done():
 			return nil
 		}

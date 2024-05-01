@@ -14,6 +14,13 @@ func WithWSLogger(l Logger) WSOption {
 	}
 }
 
+// WithPingInterval sets the ping interval
+func WithPingInterval(i time.Duration) WSOption {
+	return func(c *WSClient) {
+		c.pingInterval = i
+	}
+}
+
 // WithWSHandler sets the global message handler for the client.
 func WithWSHandler(fn func([]byte) error) WSOption {
 	return func(c *WSClient) {

@@ -60,7 +60,7 @@ func (c *HTTPClient) Get(path string, params url.Values, dest any) error {
 		params.Encode()
 		path = path + "?" + params.Encode()
 	}
-	return c.do("GET", path, nil, dest)
+	return c.Do("GET", path, nil, dest)
 }
 
 func (c *HTTPClient) Post(path string, data any, dest any) error {
@@ -88,10 +88,10 @@ func (c *HTTPClient) doBody(method, path string, data any, dest any) error {
 		}
 		body = bytes.NewReader(bts)
 	}
-	return c.do(method, path, body, dest)
+	return c.Do(method, path, body, dest)
 }
 
-func (c *HTTPClient) do(method, path string, body io.Reader, dest any) error {
+func (c *HTTPClient) Do(method, path string, body io.Reader, dest any) error {
 	req, err := http.NewRequest(method, c.root+path, body)
 	if err != nil {
 		return err
