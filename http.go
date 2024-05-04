@@ -3,7 +3,6 @@ package apic
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -122,7 +121,7 @@ func (c *HTTPClient) Do(method, path string, body io.Reader, dest any) error {
 	c.logger.Info("response", "method", method, "path", req.URL.Path, "code", resp.StatusCode)
 
 	if c.maxStatus != 0 && resp.StatusCode > c.maxStatus {
-		return fmt.Errorf("api returned bad code: %d", resp.StatusCode)
+		return badStatusError(resp)
 	}
 
 	if dest == nil {
