@@ -2,11 +2,14 @@ package apic
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
 type HTTPClient struct {
@@ -33,6 +36,9 @@ type HTTPClient struct {
 	// if set, client will throw an error if the response code received
 	// is greater than the max.
 	maxStatus int
+
+	// limiter is a rate limiter
+	limiter *rate.Limiter
 }
 
 func NewHTTPClient(root string, opts ...HTTPOption) *HTTPClient {
@@ -46,6 +52,7 @@ func NewHTTPClient(root string, opts ...HTTPOption) *HTTPClient {
 		},
 		before:    func(_ *http.Request) error { return nil },
 		maxStatus: 0,
+		limiter:   nil,
 	}
 
 	for _, opt := range opts {
@@ -97,11 +104,16 @@ func (c *HTTPClient) Do(method, path string, body io.Reader, dest any) error {
 		return err
 	}
 
+	if c.limiter != nil {
+		if err := c.limiter.Wait(context.Background()); err != nil {
+			return err
+		}
+	}
+
 	c.logger.Info("request", "method", method, "path", req.URL.Path)
 	if err := c.before(req); err != nil {
 		return err
 	}
-
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return err

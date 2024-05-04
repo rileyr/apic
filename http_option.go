@@ -2,6 +2,8 @@ package apic
 
 import (
 	"net/http"
+
+	"golang.org/x/time/rate"
 )
 
 type HTTPOption func(*HTTPClient)
@@ -39,5 +41,11 @@ func WithMaxStatus(code int) HTTPOption {
 func WithLogger(lg Logger) HTTPOption {
 	return func(c *HTTPClient) {
 		c.logger = lg
+	}
+}
+
+func WithRateLimit(r rate.Limit, b int) HTTPOption {
+	return func(c *HTTPClient) {
+		c.limiter = rate.NewLimiter(r, b)
 	}
 }
