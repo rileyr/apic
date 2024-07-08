@@ -2,6 +2,7 @@ package apic
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"nhooyr.io/websocket"
@@ -26,6 +27,9 @@ type WSClient struct {
 	// onClose is the callback invoked after each connection is closed
 	onClose func(*WSClient) error
 
+	// dialOptionsFunc is called ahead of dialing each new connection
+	dialOptionsFunc func() (*websocket.DialOptions, error)
+
 	encoder Encoder
 
 	pingInterval time.Duration
@@ -42,6 +46,7 @@ func NewWSClient(endpoint string, opts ...WSOption) *WSClient {
 		onOpen:          func(_ *WSClient) error { return nil },
 		onClose:         func(_ *WSClient) error { return nil },
 		shouldReconnect: func(_ error) bool { return false },
+		dialOptionsFunc: func() (*websocket.DialOptions, error) { return nil, nil },
 	}
 
 	for _, opt := range opts {
@@ -139,7 +144,12 @@ func (c *WSClient) run(ctx context.Context) error {
 // to the receiver
 // TODO: the threadsafety thing, across the whole client
 func (c *WSClient) connect(ctx context.Context) error {
-	conn, _, err := websocket.Dial(ctx, c.endpoint, nil)
+	opts, err := c.dialOptionsFunc()
+	if err != nil {
+		return fmt.Errorf("dial options: %w", err)
+	}
+
+	conn, _, err := websocket.Dial(ctx, c.endpoint, opts)
 	if err != nil {
 		return err
 	}

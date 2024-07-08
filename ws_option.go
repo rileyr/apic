@@ -3,6 +3,8 @@ package apic
 import (
 	"math/rand"
 	"time"
+
+	"nhooyr.io/websocket"
 )
 
 type WSOption func(*WSClient)
@@ -72,5 +74,14 @@ func WithReconnectBackoff(maxBackoff time.Duration) WSOption {
 			t.Stop()
 			return true
 		}
+	}
+}
+
+type DialOptions = websocket.DialOptions
+
+// WithDialOptions allows callers to inject dial options in to the underlying lib.
+func WithDialOptions(fn func() (*DialOptions, error)) WSOption {
+	return func(c *WSClient) {
+		c.dialOptionsFunc = fn
 	}
 }
