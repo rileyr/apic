@@ -38,6 +38,9 @@ type HTTPClient struct {
 
 	// limiter is a rate limiter
 	limiter *rate.Limiter
+
+	// logBodies is a flag to log full req/rsp bodies
+	logBodies bool
 }
 
 func NewHTTPClient(root string, opts ...HTTPOption) *HTTPClient {
@@ -98,6 +101,16 @@ func (c *HTTPClient) doBody(method, path string, data any, dest any) error {
 }
 
 func (c *HTTPClient) Do(method, path string, body io.Reader, dest any) error {
+	var bodyLog []byte
+	if c.logBodies && body != nil {
+		var err error
+		bodyLog, err = io.ReadAll(body)
+		if err != nil {
+			return err
+		}
+		body = io.NopCloser(bytes.NewBuffer(bodyLog))
+	}
+
 	req, err := http.NewRequest(method, c.root+path, body)
 	if err != nil {
 		return err
@@ -109,7 +122,9 @@ func (c *HTTPClient) Do(method, path string, body io.Reader, dest any) error {
 		}
 	}
 
-	c.logger.Info("request", "method", method, "path", req.URL.Path)
+	c.logger.Info("request", "method", method, "path", req.URL.Path, "body", string(bodyLog))
+	bodyLog = []byte{}
+
 	if err := c.before(req); err != nil {
 		return err
 	}
@@ -118,7 +133,16 @@ func (c *HTTPClient) Do(method, path string, body io.Reader, dest any) error {
 		return err
 	}
 	defer resp.Body.Close()
-	c.logger.Info("response", "method", method, "path", req.URL.Path, "code", resp.StatusCode)
+
+	bts, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	if c.logBodies {
+		bodyLog = bts
+	}
+	c.logger.Info("response", "method", method, "path", req.URL.Path, "code", resp.StatusCode, "body", string(bodyLog))
 
 	if c.maxStatus != 0 && resp.StatusCode > c.maxStatus {
 		return badStatusError(resp)
@@ -126,11 +150,6 @@ func (c *HTTPClient) Do(method, path string, body io.Reader, dest any) error {
 
 	if dest == nil {
 		return nil
-	}
-
-	bts, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
 	}
 
 	return c.decoder(bts, dest)

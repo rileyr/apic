@@ -44,6 +44,12 @@ func WithLogger(lg Logger) HTTPOption {
 	}
 }
 
+func WithLoggedBodies() HTTPOption {
+	return func(c *HTTPClient) {
+		c.logBodies = true
+	}
+}
+
 func WithRateLimit(r rate.Limit, b int) HTTPOption {
 	return func(c *HTTPClient) {
 		c.limiter = rate.NewLimiter(r, b)
