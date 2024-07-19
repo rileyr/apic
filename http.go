@@ -122,7 +122,7 @@ func (c *HTTPClient) Do(method, path string, body io.Reader, dest any) error {
 		}
 	}
 
-	c.logger.Info("request", "method", method, "path", req.URL.Path, "body", string(bodyLog))
+	c.logger.Info("request", "method", method, "path", req.URL.Path, "body", string(bodyLog), "query", req.URL.Query().Encode())
 	bodyLog = []byte{}
 
 	if err := c.before(req); err != nil {
