@@ -125,6 +125,10 @@ func (c *HTTPClient) Do(method, path string, body io.Reader, dest any) error {
 		}
 	}
 
+	if err := c.before(req); err != nil {
+		return err
+	}
+
 	scrubbedHeaders := http.Header{}
 HeaderLoop:
 	for k, vals := range req.Header {
@@ -140,9 +144,6 @@ HeaderLoop:
 	c.logger.Info("request", "method", method, "path", req.URL.Path, "body", string(bodyLog), "query", req.URL.Query().Encode(), "headers", scrubbedHeaders)
 	bodyLog = []byte{}
 
-	if err := c.before(req); err != nil {
-		return err
-	}
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return err
