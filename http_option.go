@@ -55,3 +55,9 @@ func WithRateLimit(r rate.Limit, b int) HTTPOption {
 		c.limiter = rate.NewLimiter(r, b)
 	}
 }
+
+func WithSensitiveHeader(keys ...string) HTTPOption {
+	return func(c *HTTPClient) {
+		c.sensitiveHeaders = append(c.sensitiveHeaders, keys...)
+	}
+}

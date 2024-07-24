@@ -41,6 +41,9 @@ type HTTPClient struct {
 
 	// logBodies is a flag to log full req/rsp bodies
 	logBodies bool
+
+	// sensitiveHeaders keeps a list of headers to not log
+	sensitiveHeaders []string // using a slice instead of a map, reasoning that there are only a few of these
 }
 
 func NewHTTPClient(root string, opts ...HTTPOption) *HTTPClient {
@@ -122,7 +125,19 @@ func (c *HTTPClient) Do(method, path string, body io.Reader, dest any) error {
 		}
 	}
 
-	c.logger.Info("request", "method", method, "path", req.URL.Path, "body", string(bodyLog), "query", req.URL.Query().Encode())
+	scrubbedHeaders := http.Header{}
+HeaderLoop:
+	for k, vals := range req.Header {
+		for _, sh := range c.sensitiveHeaders {
+			if k == sh {
+				scrubbedHeaders.Set(k, "XXX-REDACTED-XXX")
+				continue HeaderLoop
+			}
+		}
+		scrubbedHeaders[k] = vals
+	}
+
+	c.logger.Info("request", "method", method, "path", req.URL.Path, "body", string(bodyLog), "query", req.URL.Query().Encode(), "headers", scrubbedHeaders)
 	bodyLog = []byte{}
 
 	if err := c.before(req); err != nil {
