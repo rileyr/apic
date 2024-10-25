@@ -116,7 +116,11 @@ func (c *WSClient) run(ctx context.Context) error {
 			defer t.Stop()
 			for {
 				<-t.C
-				pings <- struct{}{}
+				select {
+				case pings <- struct{}{}:
+				default:
+					return
+				}
 			}
 		}()
 	}
