@@ -2,6 +2,7 @@ package apic
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -70,8 +71,14 @@ func (c *WSClient) Start(ctx context.Context) error {
 	}
 }
 
+var ErrNotConnected = errors.New("websocket not connected")
+
 // Write encodes and writes an object to the current connection.
 func (c *WSClient) Write(ctx context.Context, obj any) error {
+	if c.conn == nil {
+		return ErrNotConnected
+	}
+
 	bts, err := c.encoder(obj)
 	if err != nil {
 		return err
