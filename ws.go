@@ -116,12 +116,12 @@ func (c *WSClient) run(ctx context.Context) error {
 	c.logger.Info("starting")
 
 	pings := make(chan struct{})
-	defer close(pings)
 	if c.pingInterval != 0 {
 		go func() {
 			t := time.NewTicker(c.pingInterval)
 			defer t.Stop()
 			for {
+				defer close(pings)
 				<-t.C
 				select {
 				case pings <- struct{}{}:
