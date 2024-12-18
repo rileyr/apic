@@ -85,3 +85,12 @@ func WithDialOptions(fn func() (*DialOptions, error)) WSOption {
 		c.dialOptionsFunc = fn
 	}
 }
+
+// WithStaleDetection, if configured, will create a goroutine that asserts on the websocket
+// having received some message within some recent time interval. If the assertion fails, the connection
+// is closed, and whatever reconnect behavior has been configured will take over.
+func WithStaleDetection(timeout time.Duration) WSOption {
+	return func(c *WSClient) {
+		c.staleMessageTimeout = timeout
+	}
+}

@@ -36,6 +36,8 @@ type WSClient struct {
 	pingInterval time.Duration
 
 	shouldReconnect reconnectPolicy
+
+	staleMessageTimeout time.Duration
 }
 
 func NewWSClient(endpoint string, opts ...WSOption) *WSClient {
@@ -97,6 +99,7 @@ func (c *WSClient) run(ctx context.Context) error {
 	if err := c.connect(ctx); err != nil {
 		return err
 	}
+	connectedAt := time.Now()
 	c.logger.Info("connected")
 	defer c.conn.Close(websocket.StatusInternalError, "app closing")
 
@@ -115,6 +118,13 @@ func (c *WSClient) run(ctx context.Context) error {
 
 	c.logger.Info("starting")
 
+	staleCheck := time.Second * 60
+	if c.staleMessageTimeout != 0 {
+		staleCheck = time.Second
+	}
+	staleTicker := time.NewTicker(staleCheck)
+	defer staleTicker.Stop()
+
 	pings := make(chan struct{})
 	if c.pingInterval != 0 {
 		go func() {
@@ -132,12 +142,37 @@ func (c *WSClient) run(ctx context.Context) error {
 		}()
 	}
 
+	var lastMessageTimestamp time.Time
+
 	for {
 		select {
 		case bts := <-data:
 			c.logger.Debug("recv", "message", string(bts))
+			lastMessageTimestamp = time.Now()
 			if err := c.handler(bts); err != nil {
 				return err
+			}
+		case <-staleTicker.C:
+			c.logger.Debug("checking timeout", "connected_at", connectedAt)
+			if c.staleMessageTimeout == 0 {
+				c.logger.Debug("no timeout configured")
+				continue
+			}
+			// Just connected, let the connection ride for a minute before asserting
+			if lastMessageTimestamp.IsZero() && connectedAt.After(time.Now().Add(time.Minute*-1)) {
+				c.logger.Debug("no message yet received")
+				continue
+			}
+
+			check := time.Now().Add(-1 * c.staleMessageTimeout)
+			if lastMessageTimestamp.Before(check) {
+				c.logger.Debug("connection appears stale!", "last_message_time", lastMessageTimestamp.Format(time.RFC3339))
+				if err := c.conn.Close(websocket.StatusGoingAway, "we think this connection has died"); err != nil {
+					c.logger.Debug("failed to close apparent stale connection", "err", err.Error())
+				}
+				staleTicker.Stop()
+			} else {
+				c.logger.Debug("connection seems healthy")
 			}
 		case err := <-readErr:
 			return err
