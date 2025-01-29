@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"time"
 
+	"golang.org/x/time/rate"
 	"nhooyr.io/websocket"
 )
 
@@ -92,5 +93,12 @@ func WithDialOptions(fn func() (*DialOptions, error)) WSOption {
 func WithStaleDetection(timeout time.Duration) WSOption {
 	return func(c *WSClient) {
 		c.staleMessageTimeout = timeout
+	}
+}
+
+// WithWriteLimiter adds rate limiting behavior to Write() calls
+func WithWriteLimiter(r rate.Limit, b int) WSOption {
+	return func(c *WSClient) {
+		c.writeLimiter = rate.NewLimiter(r, b)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"golang.org/x/time/rate"
 	"nhooyr.io/websocket"
 )
 
@@ -38,6 +39,8 @@ type WSClient struct {
 	shouldReconnect reconnectPolicy
 
 	staleMessageTimeout time.Duration
+
+	writeLimiter *rate.Limiter
 }
 
 func NewWSClient(endpoint string, opts ...WSOption) *WSClient {
@@ -45,6 +48,7 @@ func NewWSClient(endpoint string, opts ...WSOption) *WSClient {
 		logger:          noLogger{},
 		endpoint:        endpoint,
 		encoder:         defaultEncoder,
+		writeLimiter:    nil,
 		handler:         func(_ []byte) error { return nil },
 		onOpen:          func(_ *WSClient) error { return nil },
 		onClose:         func(_ *WSClient) error { return nil },
@@ -80,15 +84,22 @@ func (c *WSClient) Write(ctx context.Context, obj any) error {
 	if c.conn == nil {
 		return ErrNotConnected
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	bts, err := c.encoder(obj)
 	if err != nil {
 		return err
 	}
-	c.logger.Debug("send", "message", string(bts))
-	if ctx == nil {
-		ctx = context.Background()
+
+	if c.writeLimiter != nil {
+		if err := c.writeLimiter.Wait(ctx); err != nil {
+			return err
+		}
 	}
+
+	c.logger.Debug("send", "message", string(bts))
 	return c.conn.Write(ctx, websocket.MessageText, bts)
 }
 

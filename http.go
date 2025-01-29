@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"golang.org/x/time/rate"
 )
 
@@ -164,7 +163,6 @@ HeaderLoop:
 
 	nr, _ := http.NewRequest(req.Method, c.root+path, req.Body)
 	nr.Header = req.Header
-	spew.Dump(nr)
 	resp, err := c.client.Do(nr)
 	if err != nil {
 		return nil, err
