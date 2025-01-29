@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"golang.org/x/time/rate"
 )
 
@@ -75,8 +76,16 @@ func (c *HTTPClient) Get(path string, params url.Values, dest any) error {
 	return c.Do("GET", path, nil, dest)
 }
 
-func (c *HTTPClient) Post(path string, data any, dest any) error {
-	return c.doBody("POST", path, data, dest)
+type HeaderFunc func(http.Header)
+
+func WithHeader(key, value string) func(http.Header) {
+	return func(hdr http.Header) {
+		hdr.Set(key, value)
+	}
+}
+
+func (c *HTTPClient) Post(path string, data any, dest any, hdrs ...HeaderFunc) error {
+	return c.doBody("POST", path, data, dest, hdrs...)
 }
 
 func (c *HTTPClient) Delete(path string, data any, dest any) error {
@@ -91,7 +100,7 @@ func (c *HTTPClient) Patch(path string, data any, dest any) error {
 	return c.doBody("PATCH", path, data, dest)
 }
 
-func (c *HTTPClient) doBody(method, path string, data any, dest any) error {
+func (c *HTTPClient) doBody(method, path string, data any, dest any, hdrs ...HeaderFunc) error {
 	var body io.Reader
 	if data != nil {
 		bts, err := c.encoder(data)
@@ -100,33 +109,31 @@ func (c *HTTPClient) doBody(method, path string, data any, dest any) error {
 		}
 		body = bytes.NewReader(bts)
 	}
-	return c.Do(method, path, body, dest)
+	return c.Do(method, path, body, dest, hdrs...)
 }
 
-func (c *HTTPClient) Do(method, path string, body io.Reader, dest any) error {
-	var bodyLog []byte
-	if c.logBodies && body != nil {
-		var err error
-		bodyLog, err = io.ReadAll(body)
-		if err != nil {
-			return err
-		}
-		body = io.NopCloser(bytes.NewBuffer(bodyLog))
-	}
+func (c *HTTPClient) Do(method, path string, body io.Reader, dest any, hdrs ...HeaderFunc) error {
+	_, err := c.DoHeader(method, path, body, dest, hdrs...)
+	return err
+}
 
+func (c *HTTPClient) DoHeader(method, path string, body io.Reader, dest any, hdrs ...HeaderFunc) (http.Header, error) {
 	req, err := http.NewRequest(method, c.root+path, body)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	for _, hdr := range hdrs {
+		hdr(req.Header)
 	}
 
 	if c.limiter != nil {
 		if err := c.limiter.Wait(context.Background()); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	if err := c.before(req); err != nil {
-		return err
+		return nil, err
 	}
 
 	scrubbedHeaders := http.Header{}
@@ -141,18 +148,32 @@ HeaderLoop:
 		scrubbedHeaders[k] = vals
 	}
 
+	var bodyLog []byte
+	if c.logBodies && req.Body != nil {
+		var err error
+		bodyLog, err = io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+		req.Body.Close()
+		req.Body = io.NopCloser(bytes.NewBuffer(bodyLog))
+	}
+
 	c.logger.Info("request", "method", method, "path", req.URL.Path, "body", string(bodyLog), "query", req.URL.Query().Encode(), "headers", scrubbedHeaders)
 	bodyLog = []byte{}
 
-	resp, err := c.client.Do(req)
+	nr, _ := http.NewRequest(req.Method, c.root+path, req.Body)
+	nr.Header = req.Header
+	spew.Dump(nr)
+	resp, err := c.client.Do(nr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	bts, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if c.logBodies {
@@ -161,12 +182,12 @@ HeaderLoop:
 	c.logger.Info("response", "method", method, "path", req.URL.Path, "code", resp.StatusCode, "body", string(bodyLog))
 
 	if c.maxStatus != 0 && resp.StatusCode > c.maxStatus {
-		return badStatusError(resp)
+		return nil, badStatusError(resp)
 	}
 
 	if dest == nil {
-		return nil
+		return resp.Header, nil
 	}
 
-	return c.decoder(bts, dest)
+	return resp.Header, c.decoder(bts, dest)
 }
