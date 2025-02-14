@@ -158,7 +158,7 @@ HeaderLoop:
 		req.Body = io.NopCloser(bytes.NewBuffer(bodyLog))
 	}
 
-	c.logger.Info("request", "method", method, "path", req.URL.Path, "body", string(bodyLog), "query", req.URL.Query().Encode(), "headers", scrubbedHeaders)
+	c.logger.Info("request", "method", method, "path", req.URL.Path, "body", string(bodyLog), "query", req.URL.RawQuery, "headers", scrubbedHeaders)
 	bodyLog = []byte{}
 
 	nr, _ := http.NewRequest(req.Method, c.root+path, req.Body)
