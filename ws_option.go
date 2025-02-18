@@ -102,3 +102,9 @@ func WithWriteLimiter(r rate.Limit, b int) WSOption {
 		c.writeLimiter = rate.NewLimiter(r, b)
 	}
 }
+
+func WithPingHandler(ph PingHandler) WSOption {
+	return func(c *WSClient) {
+		c.pingHandler = ph
+	}
+}

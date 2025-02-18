@@ -35,6 +35,7 @@ type WSClient struct {
 	encoder Encoder
 
 	pingInterval time.Duration
+	pingHandler  func(context.Context, *WSClient) error
 
 	shouldReconnect reconnectPolicy
 
@@ -54,6 +55,7 @@ func NewWSClient(endpoint string, opts ...WSOption) *WSClient {
 		onClose:         func(_ *WSClient) error { return nil },
 		shouldReconnect: func(_ error) bool { return false },
 		dialOptionsFunc: func() (*websocket.DialOptions, error) { return nil, nil },
+		pingHandler:     defaultPingHandler,
 	}
 
 	for _, opt := range opts {
@@ -188,7 +190,7 @@ func (c *WSClient) run(ctx context.Context) error {
 		case err := <-readErr:
 			return err
 		case <-pings:
-			if err := c.conn.Ping(ctx); err != nil {
+			if err := c.pingHandler(ctx, c); err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -233,3 +235,9 @@ func reader(conn *websocket.Conn, data chan []byte, errs chan error) {
 // if the function returns true, the client will
 // attempt a reconnect.
 type reconnectPolicy func(error) bool
+
+type PingHandler func(context.Context, *WSClient) error
+
+func defaultPingHandler(ctx context.Context, ws *WSClient) error {
+	return ws.conn.Ping(ctx)
+}
