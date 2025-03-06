@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -139,7 +140,7 @@ func (c *HTTPClient) DoHeader(method, path string, body io.Reader, dest any, hdr
 HeaderLoop:
 	for k, vals := range req.Header {
 		for _, sh := range c.sensitiveHeaders {
-			if k == sh {
+			if strings.EqualFold(k, sh) {
 				scrubbedHeaders.Set(k, "XXX-REDACTED-XXX")
 				continue HeaderLoop
 			}

@@ -108,3 +108,9 @@ func WithPingHandler(ph PingHandler) WSOption {
 		c.pingHandler = ph
 	}
 }
+
+func WithEndpointFunc(fn func() (string, error)) WSOption {
+	return func(c *WSClient) {
+		c.endpointFunc = fn
+	}
+}

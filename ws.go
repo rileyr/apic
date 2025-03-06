@@ -14,6 +14,9 @@ type WSClient struct {
 	// endpoint is the server endpoint
 	endpoint string
 
+	// endpointFunc is an optional function at that can provide dynamic endpoints
+	endpointFunc func() (string, error)
+
 	// logger infos connection lifecycles, and debugs each message sent and received
 	logger Logger
 
@@ -60,6 +63,12 @@ func NewWSClient(endpoint string, opts ...WSOption) *WSClient {
 
 	for _, opt := range opts {
 		opt(w)
+	}
+
+	if w.endpointFunc == nil {
+		w.endpointFunc = func() (string, error) {
+			return w.endpoint, nil
+		}
 	}
 
 	return w
@@ -208,7 +217,12 @@ func (c *WSClient) connect(ctx context.Context) error {
 		return fmt.Errorf("dial options: %w", err)
 	}
 
-	conn, _, err := websocket.Dial(ctx, c.endpoint, opts)
+	endpoint, err := c.endpointFunc()
+	if err != nil {
+		return err
+	}
+
+	conn, _, err := websocket.Dial(ctx, endpoint, opts)
 	if err != nil {
 		return err
 	}
