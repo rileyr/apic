@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -147,18 +148,18 @@ func (c *WSClient) run(ctx context.Context) error {
 	staleTicker := time.NewTicker(staleCheck)
 	defer staleTicker.Stop()
 
-	pings := make(chan struct{})
 	if c.pingInterval != 0 {
 		go func() {
 			t := time.NewTicker(c.pingInterval)
 			defer t.Stop()
+
 			for {
-				defer close(pings)
-				<-t.C
 				select {
-				case pings <- struct{}{}:
-				default:
-					return
+				case <-t.C:
+					if err := c.pingHandler(ctx, c); err != nil {
+						slog.Default().Error(err.Error())
+						return
+					}
 				}
 			}
 		}()
@@ -198,10 +199,6 @@ func (c *WSClient) run(ctx context.Context) error {
 			}
 		case err := <-readErr:
 			return err
-		case <-pings:
-			if err := c.pingHandler(ctx, c); err != nil {
-				return err
-			}
 		case <-ctx.Done():
 			return nil
 		}
