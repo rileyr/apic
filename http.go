@@ -181,11 +181,21 @@ HeaderLoop:
 	c.logger.Info("response", "method", method, "path", req.URL.Path, "code", resp.StatusCode, "body", string(bodyLog))
 
 	if c.maxStatus != 0 && resp.StatusCode > c.maxStatus {
-		return nil, badStatusError(resp)
+		return nil, ResponseError{
+			Code: resp.StatusCode,
+			Body: bts,
+		}
 	}
 
 	if dest == nil {
 		return resp.Header, nil
+	}
+
+	if err := c.decoder(bts, dest); err != nil {
+		return resp.Header, DecodeError{
+			Err:  err,
+			Body: bts,
+		}
 	}
 
 	return resp.Header, c.decoder(bts, dest)
