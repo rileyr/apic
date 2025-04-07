@@ -2,34 +2,30 @@ package apic
 
 import (
 	"fmt"
-	"io"
-	"net/http"
 )
 
-func badStatusError(rsp *http.Response) error {
-	bts, err := io.ReadAll(rsp.Body)
-	if err != nil {
-		return err
-	}
-	return statusError{
-		body: bts,
-		code: rsp.StatusCode,
-	}
+type ResponseError struct {
+	Code int
+	Body []byte
 }
 
-type statusError struct {
-	body []byte
-	code int
+func (e ResponseError) Error() string {
+	return fmt.Sprintf("http code %d: %s", e.Code, string(e.Body))
 }
 
-func (se statusError) Error() string {
-	return fmt.Sprintf("api returned bad status: %d [%d]", se.code, len(se.body))
+type DecodeError struct {
+	Body []byte
+	Err  error
 }
 
-func GetErrorCode(err error) int {
-	se, ok := err.(statusError)
+func (e DecodeError) Error() string {
+	return fmt.Sprintf("decode: %s: %s", e.Err, string(e.Body))
+}
+
+func GetResponseErrorCode(err error) int {
+	e, ok := err.(ResponseError)
 	if !ok {
 		return 0
 	}
-	return se.code
+	return e.Code
 }
