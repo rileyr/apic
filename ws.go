@@ -89,6 +89,18 @@ func (c *WSClient) Start(ctx context.Context) error {
 	}
 }
 
+func (c *WSClient) Stop(reason string) error {
+	if c.conn == nil {
+		return nil
+	}
+
+	if reason == "" {
+		reason = "going away"
+	}
+
+	return c.conn.Close(websocket.StatusGoingAway, reason)
+}
+
 var ErrNotConnected = errors.New("websocket not connected")
 
 // Write encodes and writes an object to the current connection.
