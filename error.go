@@ -1,7 +1,12 @@
 package apic
 
 import (
+	"errors"
 	"fmt"
+)
+
+var (
+	MaxAttemptsError = errors.New("max connection attempts")
 )
 
 type ResponseError struct {

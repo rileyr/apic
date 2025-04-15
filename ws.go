@@ -42,6 +42,8 @@ type WSClient struct {
 	pingHandler  func(context.Context, *WSClient) error
 
 	shouldReconnect reconnectPolicy
+	maxAttempts     int
+	currentAttempts int
 
 	staleMessageTimeout time.Duration
 
@@ -82,6 +84,11 @@ func (c *WSClient) Start(ctx context.Context) error {
 	for {
 		err := c.run(ctx)
 		c.logger.Info("disconnected", "error", err)
+
+		if errors.Is(err, MaxAttemptsError) {
+			return err
+		}
+
 		if !c.shouldReconnect(err) {
 			return err
 		}
@@ -134,6 +141,8 @@ func (c *WSClient) run(ctx context.Context) error {
 	if err := c.connect(ctx); err != nil {
 		return err
 	}
+	c.currentAttempts = 0
+
 	connectedAt := time.Now()
 	c.logger.Info("connected")
 	defer c.conn.Close(websocket.StatusInternalError, "app closing")
@@ -221,6 +230,14 @@ func (c *WSClient) run(ctx context.Context) error {
 // to the receiver
 // TODO: the threadsafety thing, across the whole client
 func (c *WSClient) connect(ctx context.Context) error {
+	defer func() {
+		c.currentAttempts++
+	}()
+
+	if c.maxAttempts > 0 && c.currentAttempts <= c.maxAttempts {
+		return fmt.Errorf("%d: %w", c.currentAttempts, MaxAttemptsError)
+	}
+
 	opts, err := c.dialOptionsFunc()
 	if err != nil {
 		return fmt.Errorf("dial options: %w", err)

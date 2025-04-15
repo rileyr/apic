@@ -109,6 +109,12 @@ func WithPingHandler(ph PingHandler) WSOption {
 	}
 }
 
+func WithMaxAttempts(n int) WSOption {
+	return func(c *WSClient) {
+		c.maxAttempts = n
+	}
+}
+
 func WithEndpointFunc(fn func() (string, error)) WSOption {
 	return func(c *WSClient) {
 		c.endpointFunc = fn
