@@ -234,7 +234,7 @@ func (c *WSClient) connect(ctx context.Context) error {
 		c.currentAttempts++
 	}()
 
-	if c.maxAttempts > 0 && c.currentAttempts <= c.maxAttempts {
+	if c.maxAttempts > 0 && c.currentAttempts >= c.maxAttempts {
 		return fmt.Errorf("%d: %w", c.currentAttempts, MaxAttemptsError)
 	}
 
