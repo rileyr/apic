@@ -124,6 +124,10 @@ func (c *WSClient) Write(ctx context.Context, obj any) error {
 		return err
 	}
 
+	return c.Send(ctx, bts)
+}
+
+func (c *WSClient) Send(ctx context.Context, bts []byte) error {
 	if c.writeLimiter != nil {
 		if err := c.writeLimiter.Wait(ctx); err != nil {
 			return err
