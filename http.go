@@ -70,8 +70,14 @@ func NewHTTPClient(root string, opts ...HTTPOption) *HTTPClient {
 
 func (c *HTTPClient) Get(path string, params url.Values, dest any) error {
 	if params != nil {
-		params.Encode()
-		path = path + "?" + params.Encode()
+		encoded := params.Encode()
+		if encoded != "" {
+			separator := "?"
+			if strings.Contains(path, "?") {
+				separator = "&"
+			}
+			path = path + separator + encoded
+		}
 	}
 	return c.Do("GET", path, nil, dest)
 }

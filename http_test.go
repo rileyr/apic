@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -488,6 +489,224 @@ func TestHTTPClient_MaxStatus(t *testing.T) {
 				} else if respErr.Code != tt.statusCode {
 					t.Errorf("expected status code %d, got %d", tt.statusCode, respErr.Code)
 				}
+			}
+		})
+	}
+}
+
+func TestHTTPClient_QueryParameterHandling(t *testing.T) {
+	var capturedQuery string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedQuery = r.URL.RawQuery
+		json.NewEncoder(w).Encode(testResponse{Message: "success"})
+	}))
+	defer server.Close()
+
+	client := NewHTTPClient(server.URL)
+
+	// Test with url.Values to verify parameter handling
+	params := url.Values{}
+	// Add parameters in a specific order
+	params.Add("zebra", "last")
+	params.Add("alpha", "first") 
+	params.Add("beta", "second")
+	params.Add("gamma", "third")
+	
+	// Make the request
+	var resp testResponse
+	err := client.Get("/test", params, &resp)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Parse the captured query to verify all parameters are present
+	parsedParams, err := url.ParseQuery(capturedQuery)
+	if err != nil {
+		t.Fatalf("failed to parse captured query: %v", err)
+	}
+
+	// Verify all parameters are present with correct values
+	expectedParams := map[string]string{
+		"zebra": "last",
+		"alpha": "first",
+		"beta":  "second", 
+		"gamma": "third",
+	}
+
+	for key, expectedValue := range expectedParams {
+		if actualValue := parsedParams.Get(key); actualValue != expectedValue {
+			t.Errorf("expected parameter %s=%s, got %s", key, expectedValue, actualValue)
+		}
+	}
+
+	// Verify that the library follows Go's standard behavior for query parameter ordering
+	// url.Values.Encode() sorts parameters alphabetically (Go standard library behavior)
+	expectedQuery := "alpha=first&beta=second&gamma=third&zebra=last"
+	if capturedQuery != expectedQuery {
+		t.Errorf("expected query string %s, got %s", expectedQuery, capturedQuery)
+	}
+}
+
+func TestHTTPClient_QueryParameterOrderingWithMultipleValues(t *testing.T) {
+	var capturedQuery string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedQuery = r.URL.RawQuery
+		json.NewEncoder(w).Encode(testResponse{Message: "success"})
+	}))
+	defer server.Close()
+
+	client := NewHTTPClient(server.URL)
+
+	// Test with multiple values for the same parameter
+	params := url.Values{}
+	params.Add("category", "books")
+	params.Add("sort", "name")
+	params.Add("category", "movies") // Add second value for category
+	params.Add("limit", "10")
+	
+	var resp testResponse
+	err := client.Get("/test", params, &resp)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Parse the captured query
+	parsedParams, err := url.ParseQuery(capturedQuery)
+	if err != nil {
+		t.Fatalf("failed to parse captured query: %v", err)
+	}
+
+	// Verify multiple values are preserved
+	categories := parsedParams["category"]
+	if len(categories) != 2 {
+		t.Errorf("expected 2 category values, got %d", len(categories))
+	}
+	if categories[0] != "books" || categories[1] != "movies" {
+		t.Errorf("expected category values [books, movies], got %v", categories)
+	}
+
+	// Verify the order of parameters in the query string
+	// Go's url.Values.Encode() sorts keys alphabetically and groups multiple values
+	expectedQuery := "category=books&category=movies&limit=10&sort=name"
+	if capturedQuery != expectedQuery {
+		t.Errorf("expected query string %s, got %s", expectedQuery, capturedQuery)
+	}
+}
+
+func TestHTTPClient_EmptyQueryParameters(t *testing.T) {
+	var capturedQuery string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedQuery = r.URL.RawQuery
+		json.NewEncoder(w).Encode(testResponse{Message: "success"})
+	}))
+	defer server.Close()
+
+	client := NewHTTPClient(server.URL)
+
+	// Test with nil params
+	var resp testResponse
+	err := client.Get("/test", nil, &resp)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if capturedQuery != "" {
+		t.Errorf("expected empty query string, got %s", capturedQuery)
+	}
+
+	// Test with empty url.Values
+	emptyParams := url.Values{}
+	err = client.Get("/test", emptyParams, &resp)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if capturedQuery != "" {
+		t.Errorf("expected empty query string, got %s", capturedQuery)
+	}
+}
+
+func TestHTTPClient_QueryParameterFix(t *testing.T) {
+	var capturedURL string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedURL = r.URL.String()
+		json.NewEncoder(w).Encode(testResponse{Message: "success"})
+	}))
+	defer server.Close()
+
+	client := NewHTTPClient(server.URL)
+
+	testCases := []struct {
+		name        string
+		path        string
+		params      url.Values
+		expectedURL string
+	}{
+		{
+			name:        "path without query, with params",
+			path:        "/test",
+			params:      url.Values{"param": []string{"value"}},
+			expectedURL: "/test?param=value",
+		},
+		{
+			name:        "path with query, with params",
+			path:        "/test?existing=value",
+			params:      url.Values{"new": []string{"param"}},
+			expectedURL: "/test?existing=value&new=param",
+		},
+		{
+			name:        "path with query, with multiple params",
+			path:        "/test?existing=value",
+			params:      url.Values{"new": []string{"param"}, "another": []string{"value"}},
+			expectedURL: "/test?existing=value&another=value&new=param", // params are sorted alphabetically
+		},
+		{
+			name:        "path without query, no params",
+			path:        "/test",
+			params:      nil,
+			expectedURL: "/test",
+		},
+		{
+			name:        "path without query, empty params",
+			path:        "/test",
+			params:      url.Values{},
+			expectedURL: "/test",
+		},
+		{
+			name:        "path with query, no params",
+			path:        "/test?existing=value",
+			params:      nil,
+			expectedURL: "/test?existing=value",
+		},
+		{
+			name:        "path with query, empty params",
+			path:        "/test?existing=value",
+			params:      url.Values{},
+			expectedURL: "/test?existing=value",
+		},
+		{
+			name:        "path with multiple query params, add more",
+			path:        "/test?a=1&b=2",
+			params:      url.Values{"c": []string{"3"}, "d": []string{"4"}},
+			expectedURL: "/test?a=1&b=2&c=3&d=4",
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			var resp testResponse
+			err := client.Get(tt.path, tt.params, &resp)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if capturedURL != tt.expectedURL {
+				t.Errorf("Expected URL: %s, got: %s", tt.expectedURL, capturedURL)
+			}
+
+			// Ensure no malformed URLs
+			if strings.Contains(capturedURL, "??") {
+				t.Errorf("Malformed URL with double '?': %s", capturedURL)
 			}
 		})
 	}

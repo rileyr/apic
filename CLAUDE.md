@@ -65,8 +65,12 @@ go build -v ./...
 
 ## Important Notes
 
-- No test files exist yet - when adding features, create corresponding test files
+- Comprehensive test coverage now exists in `http_test.go` covering all major functionality
 - The library is designed for simplicity - avoid adding complex features unless necessary
 - Maintain the functional options pattern for any new configuration
 - Keep external dependencies minimal (currently only 2 direct dependencies)
 - Follow the existing error handling patterns with typed errors
+
+## Recent Bug Fixes
+
+- **URL Parameter Handling**: Fixed critical bug where paths with existing query parameters would create malformed URLs with multiple '?' characters. The `Get()` method now properly uses '&' to append parameters when the path already contains query parameters.
