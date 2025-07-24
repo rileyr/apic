@@ -200,9 +200,11 @@ func (c *WSClient) run(ctx context.Context) error {
 				select {
 				case <-t.C:
 					if err := c.pingHandler(ctx, c); err != nil {
-						slog.Default().Error(err.Error())
+						c.logger.Debug("ping handler error", "error", err.Error())
 						return
 					}
+				case <-ctx.Done():
+					return
 				}
 			}
 		}()
