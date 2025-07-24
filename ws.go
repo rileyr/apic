@@ -22,7 +22,7 @@ type WSClient struct {
 	logger Logger
 
 	// conn is the (current) underlying connection
-	conn *websocket.Conn
+	conn   *websocket.Conn
 	connMu sync.RWMutex
 
 	// handler is the global message handler
@@ -122,11 +122,11 @@ func (c *WSClient) IsConnected() bool {
 func (c *WSClient) Close() error {
 	c.connMu.Lock()
 	defer c.connMu.Unlock()
-	
+
 	if c.conn == nil {
 		return nil
 	}
-	
+
 	err := c.conn.Close(websocket.StatusNormalClosure, "client closing")
 	c.conn = nil
 	return err
@@ -183,11 +183,11 @@ func (c *WSClient) run(ctx context.Context) error {
 
 	connectedAt := time.Now()
 	c.logger.Info("connected")
-	
+
 	c.connMu.RLock()
 	conn := c.conn
 	c.connMu.RUnlock()
-	
+
 	defer func() {
 		if conn != nil {
 			conn.Close(websocket.StatusInternalError, "app closing")
@@ -305,11 +305,11 @@ func (c *WSClient) connect(ctx context.Context) error {
 		return err
 	}
 	conn.SetReadLimit(-1) // that's just like, my opinion or whatever
-	
+
 	c.connMu.Lock()
 	c.conn = conn
 	c.connMu.Unlock()
-	
+
 	return nil
 }
 
@@ -338,7 +338,7 @@ func defaultPingHandler(ctx context.Context, ws *WSClient) error {
 	ws.connMu.RLock()
 	conn := ws.conn
 	ws.connMu.RUnlock()
-	
+
 	if conn == nil {
 		return ErrNotConnected
 	}

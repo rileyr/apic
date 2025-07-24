@@ -312,7 +312,7 @@ func TestWSClientWriteWithContext(t *testing.T) {
 func TestWSClientBasicConnection(t *testing.T) {
 	logger := &wsTestLogger{}
 	messageReceived := make(chan []byte, 1)
-	
+
 	handler := func(data []byte) error {
 		messageReceived <- data
 		return nil
@@ -435,7 +435,7 @@ func TestWSClientReconnection(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		count := connectionCount.Add(1)
 		connectedChan <- struct{}{}
-		
+
 		c, err := websocket.Accept(w, r, nil)
 		if err != nil {
 			t.Fatalf("failed to accept websocket: %v", err)
@@ -455,7 +455,7 @@ func TestWSClientReconnection(t *testing.T) {
 	defer server.Close()
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	
+
 	reconnectCount := atomic.Int32{}
 	client := NewWSClient(wsURL,
 		WithWSLogger(logger),
@@ -547,7 +547,7 @@ func TestWSClientWriteWithRateLimit(t *testing.T) {
 	defer server.Close()
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	
+
 	// Very restrictive rate limit: 2 per second
 	client := NewWSClient(wsURL,
 		WithWriteLimiter(rate.Limit(2), 1),
@@ -563,7 +563,7 @@ func TestWSClientWriteWithRateLimit(t *testing.T) {
 	time.Sleep(time.Millisecond * 200)
 
 	start := time.Now()
-	
+
 	// Try to send 3 messages rapidly
 	go func() {
 		for i := 0; i < 3; i++ {
@@ -601,7 +601,7 @@ func TestWSClientWriteWithRateLimit(t *testing.T) {
 // TestWSClientPingHandler tests custom ping handler
 func TestWSClientPingHandler(t *testing.T) {
 	pingCount := atomic.Int32{}
-	
+
 	customPingHandler := func(ctx context.Context, ws *WSClient) error {
 		pingCount.Add(1)
 		// Don't actually ping in test
@@ -644,7 +644,7 @@ func TestWSClientPingHandler(t *testing.T) {
 // TestWSClientStaleDetection tests stale connection detection
 func TestWSClientStaleDetection(t *testing.T) {
 	logger := &wsTestLogger{}
-	
+
 	// Create a test WebSocket server that stops sending messages
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, err := websocket.Accept(w, r, nil)
@@ -675,7 +675,7 @@ func TestWSClientStaleDetection(t *testing.T) {
 	defer cancel()
 
 	err := client.Start(ctx)
-	
+
 	// Check if connection was closed due to staleness
 	logger.mu.Lock()
 	hasStaleLog := false
@@ -729,7 +729,7 @@ func TestWSClientHandlerError(t *testing.T) {
 	defer cancel()
 
 	err := client.Start(ctx)
-	
+
 	if err != handlerErr {
 		t.Errorf("expected handler error to be returned, got %v", err)
 	}
@@ -749,7 +749,7 @@ func TestWSClientEncoderError(t *testing.T) {
 			t.Fatalf("failed to accept websocket: %v", err)
 		}
 		defer c.Close(websocket.StatusNormalClosure, "")
-		
+
 		// Keep connection open
 		time.Sleep(time.Second)
 	}))
@@ -825,7 +825,7 @@ func TestWSClientOnOpenError(t *testing.T) {
 			t.Fatalf("failed to accept websocket: %v", err)
 		}
 		defer c.Close(websocket.StatusNormalClosure, "")
-		
+
 		// Keep connection open
 		time.Sleep(time.Second)
 	}))
@@ -854,7 +854,7 @@ func TestWSClientWriteCancelledContext(t *testing.T) {
 			t.Fatalf("failed to accept websocket: %v", err)
 		}
 		defer c.Close(websocket.StatusNormalClosure, "")
-		
+
 		// Keep connection open
 		time.Sleep(time.Second * 2)
 	}))
@@ -886,7 +886,7 @@ func TestWSClientWriteCancelledContext(t *testing.T) {
 // TestWSClientConnectionFailure tests behavior when connection fails
 func TestWSClientConnectionFailure(t *testing.T) {
 	logger := &wsTestLogger{}
-	
+
 	// Use invalid URL
 	client := NewWSClient("ws://localhost:0/invalid",
 		WithWSLogger(logger),
