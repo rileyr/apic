@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -23,6 +24,7 @@ type WSClient struct {
 
 	// conn is the (current) underlying connection
 	conn *websocket.Conn
+	connMu sync.RWMutex
 
 	// handler is the global message handler
 	handler func([]byte) error
@@ -112,7 +114,11 @@ var ErrNotConnected = errors.New("websocket not connected")
 
 // Write encodes and writes an object to the current connection.
 func (c *WSClient) Write(ctx context.Context, obj any) error {
-	if c.conn == nil {
+	c.connMu.RLock()
+	conn := c.conn
+	c.connMu.RUnlock()
+
+	if conn == nil {
 		return ErrNotConnected
 	}
 	if ctx == nil {
@@ -135,7 +141,7 @@ func (c *WSClient) Send(ctx context.Context, bts []byte) error {
 	}
 
 	c.logger.Debug("send", "message", string(bts))
-	return c.conn.Write(ctx, websocket.MessageText, bts)
+	return conn.Write(ctx, websocket.MessageText, bts)
 }
 
 // run connects the websocket, and runs the single connection until
@@ -149,11 +155,23 @@ func (c *WSClient) run(ctx context.Context) error {
 
 	connectedAt := time.Now()
 	c.logger.Info("connected")
-	defer c.conn.Close(websocket.StatusInternalError, "app closing")
+	
+	c.connMu.RLock()
+	conn := c.conn
+	c.connMu.RUnlock()
+	
+	defer func() {
+		if conn != nil {
+			conn.Close(websocket.StatusInternalError, "app closing")
+		}
+		c.connMu.Lock()
+		c.conn = nil
+		c.connMu.Unlock()
+	}()
 
 	readErr := make(chan error)
 	data := make(chan []byte)
-	go reader(c.conn, data, readErr)
+	go reader(conn, data, readErr)
 
 	if err := c.onOpen(c); err != nil {
 		return err
@@ -215,7 +233,7 @@ func (c *WSClient) run(ctx context.Context) error {
 			check := time.Now().Add(-1 * c.staleMessageTimeout)
 			if lastMessageTimestamp.Before(check) {
 				c.logger.Debug("connection appears stale!", "last_message_time", lastMessageTimestamp.Format(time.RFC3339))
-				if err := c.conn.Close(websocket.StatusGoingAway, "we think this connection has died"); err != nil {
+				if err := conn.Close(websocket.StatusGoingAway, "we think this connection has died"); err != nil {
 					c.logger.Debug("failed to close apparent stale connection", "err", err.Error())
 				}
 				staleTicker.Stop()
@@ -257,7 +275,11 @@ func (c *WSClient) connect(ctx context.Context) error {
 		return err
 	}
 	conn.SetReadLimit(-1) // that's just like, my opinion or whatever
+	
+	c.connMu.Lock()
 	c.conn = conn
+	c.connMu.Unlock()
+	
 	return nil
 }
 
@@ -283,5 +305,12 @@ type reconnectPolicy func(error) bool
 type PingHandler func(context.Context, *WSClient) error
 
 func defaultPingHandler(ctx context.Context, ws *WSClient) error {
-	return ws.conn.Ping(ctx)
+	ws.connMu.RLock()
+	conn := ws.conn
+	ws.connMu.RUnlock()
+	
+	if conn == nil {
+		return ErrNotConnected
+	}
+	return conn.Ping(ctx)
 }
