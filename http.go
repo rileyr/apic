@@ -198,5 +198,5 @@ HeaderLoop:
 		}
 	}
 
-	return resp.Header, c.decoder(bts, dest)
+	return resp.Header, nil
 }
