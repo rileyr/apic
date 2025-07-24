@@ -160,6 +160,14 @@ func (c *WSClient) Send(ctx context.Context, bts []byte) error {
 		}
 	}
 
+	c.connMu.RLock()
+	conn := c.conn
+	c.connMu.RUnlock()
+
+	if conn == nil {
+		return ErrNotConnected
+	}
+
 	c.logger.Debug("send", "message", string(bts))
 	return conn.Write(ctx, websocket.MessageText, bts)
 }

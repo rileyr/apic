@@ -2,7 +2,6 @@ package apic
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"net/http"
 	"net/url"
