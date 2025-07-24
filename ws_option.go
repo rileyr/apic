@@ -65,7 +65,7 @@ func WithReconnectBackoff(maxBackoff time.Duration) WSOption {
 		c.shouldReconnect = func(err error) bool {
 			count++
 			mills := rand.Intn(maxMillis-minMillis) + minMillis
-			d := time.Millisecond * time.Duration((16^count)+mills)
+			d := time.Millisecond * time.Duration((1<<uint(count))+mills)
 			if d > maxBackoff {
 				d = maxBackoff
 			}

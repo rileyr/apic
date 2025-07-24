@@ -2,7 +2,6 @@ package apic
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"net/http"
 	"net/url"
@@ -70,7 +69,6 @@ func NewHTTPClient(root string, opts ...HTTPOption) *HTTPClient {
 
 func (c *HTTPClient) Get(path string, params url.Values, dest any) error {
 	if params != nil {
-		params.Encode()
 		path = path + "?" + params.Encode()
 	}
 	return c.Do("GET", path, nil, dest)
@@ -127,7 +125,7 @@ func (c *HTTPClient) DoHeader(method, path string, body io.Reader, dest any, hdr
 	}
 
 	if c.limiter != nil {
-		if err := c.limiter.Wait(context.Background()); err != nil {
+		if err := c.limiter.Wait(req.Context()); err != nil {
 			return nil, err
 		}
 	}
@@ -198,5 +196,5 @@ HeaderLoop:
 		}
 	}
 
-	return resp.Header, c.decoder(bts, dest)
+	return resp.Header, nil
 }
