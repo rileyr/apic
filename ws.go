@@ -112,6 +112,27 @@ func (c *WSClient) Stop(reason string) error {
 
 var ErrNotConnected = errors.New("websocket not connected")
 
+// IsConnected returns true if the WebSocket is currently connected.
+func (c *WSClient) IsConnected() bool {
+	c.connMu.RLock()
+	defer c.connMu.RUnlock()
+	return c.conn != nil
+}
+
+// Close gracefully closes the WebSocket connection.
+func (c *WSClient) Close() error {
+	c.connMu.Lock()
+	defer c.connMu.Unlock()
+	
+	if c.conn == nil {
+		return nil
+	}
+	
+	err := c.conn.Close(websocket.StatusNormalClosure, "client closing")
+	c.conn = nil
+	return err
+}
+
 // Write encodes and writes an object to the current connection.
 func (c *WSClient) Write(ctx context.Context, obj any) error {
 	c.connMu.RLock()
