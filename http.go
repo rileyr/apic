@@ -126,7 +126,7 @@ func (c *HTTPClient) DoHeader(method, path string, body io.Reader, dest any, hdr
 	}
 
 	if c.limiter != nil {
-		if err := c.limiter.Wait(context.Background()); err != nil {
+		if err := c.limiter.Wait(req.Context()); err != nil {
 			return nil, err
 		}
 	}
