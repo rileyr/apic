@@ -171,7 +171,7 @@ func (c *WSClient) run(ctx context.Context) error {
 
 	readErr := make(chan error)
 	data := make(chan []byte)
-	go reader(conn, data, readErr)
+	go reader(ctx, conn, data, readErr)
 
 	if err := c.onOpen(c); err != nil {
 		return err
@@ -286,11 +286,11 @@ func (c *WSClient) connect(ctx context.Context) error {
 }
 
 // reader is a helper func to pump messages from a connection
-func reader(conn *websocket.Conn, data chan []byte, errs chan error) {
+func reader(ctx context.Context, conn *websocket.Conn, data chan []byte, errs chan error) {
 	defer close(data)
 	defer close(errs)
 	for {
-		_, bts, err := conn.Read(context.Background())
+		_, bts, err := conn.Read(ctx)
 		if err != nil {
 			errs <- err
 			return
