@@ -300,6 +300,7 @@ func (c *WSClient) connect(ctx context.Context) error {
 		return err
 	}
 
+	c.logger.Info("dailing", "endpoint", endpoint)
 	conn, _, err := websocket.Dial(ctx, endpoint, opts)
 	if err != nil {
 		return err
