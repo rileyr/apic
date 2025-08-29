@@ -4,8 +4,8 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/coder/websocket"
 	"golang.org/x/time/rate"
-	"nhooyr.io/websocket"
 )
 
 type WSOption func(*WSClient)

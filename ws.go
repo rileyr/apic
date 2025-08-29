@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/websocket"
 	"golang.org/x/time/rate"
-	"nhooyr.io/websocket"
 )
 
 type WSClient struct {
