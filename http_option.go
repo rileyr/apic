@@ -2,6 +2,7 @@ package apic
 
 import (
 	"net/http"
+	"time"
 
 	"golang.org/x/time/rate"
 )
@@ -59,5 +60,11 @@ func WithRateLimit(r rate.Limit, b int) HTTPOption {
 func WithSensitiveHeader(keys ...string) HTTPOption {
 	return func(c *HTTPClient) {
 		c.sensitiveHeaders = append(c.sensitiveHeaders, keys...)
+	}
+}
+
+func WithHTTPTimeout(timeout time.Duration) HTTPOption {
+	return func(c *HTTPClient) {
+		c.client.Timeout = timeout
 	}
 }
