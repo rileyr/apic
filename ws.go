@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -49,6 +50,8 @@ type WSClient struct {
 	staleMessageTimeout time.Duration
 
 	writeLimiter *rate.Limiter
+
+	stopped atomic.Bool
 }
 
 func NewWSClient(endpoint string, opts ...WSOption) *WSClient {
@@ -81,13 +84,20 @@ func NewWSClient(endpoint string, opts ...WSOption) *WSClient {
 // Start runs the client until either:
 // - the context is canceled
 // - the reconnect policy returns false
+// - Stop() is called
 func (c *WSClient) Start(ctx context.Context) error {
+	c.stopped.Store(false)
 	for {
 		err := c.run(ctx)
 		c.logger.Info("disconnected", "error", err)
 
 		if errors.Is(err, MaxAttemptsError) {
 			return err
+		}
+
+		if c.stopped.Load() {
+			c.logger.Info("stopped, not reconnecting")
+			return nil
 		}
 
 		if !c.shouldReconnect(err) {
@@ -98,6 +108,8 @@ func (c *WSClient) Start(ctx context.Context) error {
 }
 
 func (c *WSClient) Stop(reason string) error {
+	c.stopped.Store(true)
+
 	if c.conn == nil {
 		return nil
 	}
