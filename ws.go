@@ -100,6 +100,15 @@ func (c *WSClient) Start(ctx context.Context) error {
 			return nil
 		}
 
+		// A cancelled context is a stop, not a failure to retry. Without this
+		// check a dial that failed *because* the context was cancelled is
+		// handed to the reconnect policy, which backs off and dials again,
+		// forever, after the caller has gone away.
+		if ctx.Err() != nil {
+			c.logger.Info("context done, not reconnecting")
+			return nil
+		}
+
 		if !c.shouldReconnect(err) {
 			return err
 		}
@@ -110,7 +119,13 @@ func (c *WSClient) Start(ctx context.Context) error {
 func (c *WSClient) Stop(reason string) error {
 	c.stopped.Store(true)
 
-	if c.conn == nil {
+	// conn is written by run under connMu; reading it bare here raced with
+	// the run loop's teardown.
+	c.connMu.RLock()
+	conn := c.conn
+	c.connMu.RUnlock()
+
+	if conn == nil {
 		return nil
 	}
 
@@ -118,7 +133,7 @@ func (c *WSClient) Stop(reason string) error {
 		reason = "going away"
 	}
 
-	return c.conn.Close(websocket.StatusGoingAway, reason)
+	return conn.Close(websocket.StatusGoingAway, reason)
 }
 
 var ErrNotConnected = errors.New("websocket not connected")

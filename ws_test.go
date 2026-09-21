@@ -915,3 +915,89 @@ func TestWSClientConnectionFailure(t *testing.T) {
 		t.Error("expected 'disconnected' log message")
 	}
 }
+
+// TestWSClientReconnectBackoffDoesNotOverflow pins the exponent cap: before
+// it, the 63rd consecutive reconnect computed a negative duration and the
+// timer constructor panicked, killing the process.
+func TestWSClientReconnectBackoffDoesNotOverflow(t *testing.T) {
+	client := NewWSClient("ws://example.com/ws",
+		WithReconnectBackoff(time.Millisecond),
+	)
+
+	for i := 0; i < 80; i++ {
+		start := time.Now()
+		if !client.shouldReconnect(errors.New("test")) {
+			t.Fatalf("attempt %d: expected shouldReconnect to return true", i)
+		}
+		// Every wait is clamped to maxBackoff plus jitter; a negative
+		// duration would have panicked before reaching here.
+		if elapsed := time.Since(start); elapsed > time.Second {
+			t.Fatalf("attempt %d: backoff %v exceeds the clamp", i, elapsed)
+		}
+	}
+}
+
+// TestWSClientStartReturnsOnContextCancel pins that a cancelled context ends
+// the reconnect loop. Before this, a dial that failed because the context was
+// cancelled was handed to the reconnect policy, which retried forever.
+func TestWSClientStartReturnsOnContextCancel(t *testing.T) {
+	// Nothing listens here, so every dial fails.
+	client := NewWSClient("ws://127.0.0.1:1/ws",
+		WithReconnectBackoff(time.Millisecond*5),
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- client.Start(ctx) }()
+
+	// Let it fail and reconnect a few times, then cancel.
+	time.Sleep(time.Millisecond * 50)
+	cancel()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("expected a clean return after cancel, got %v", err)
+		}
+	case <-time.After(time.Second * 2):
+		t.Fatal("Start did not return after the context was cancelled")
+	}
+}
+
+// TestWSClientStopRacesRunTeardown exercises Stop concurrently with the run
+// loop's teardown, which the race detector previously flagged: Stop read conn
+// without the lock that run writes it under.
+func TestWSClientStopRacesRunTeardown(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		<-r.Context().Done()
+		c.Close(websocket.StatusNormalClosure, "")
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	for i := 0; i < 20; i++ {
+		client := NewWSClient(wsURL)
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		go func() { client.Start(ctx); close(done) }()
+
+		// Wait for the connection, then cancel and Stop at the same moment.
+		deadline := time.Now().Add(time.Second)
+		for !client.IsConnected() && time.Now().Before(deadline) {
+			time.Sleep(time.Millisecond)
+		}
+		go cancel()
+		go client.Stop("test")
+
+		select {
+		case <-done:
+		case <-time.After(time.Second * 2):
+			t.Fatal("Start did not return")
+		}
+	}
+}

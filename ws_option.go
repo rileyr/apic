@@ -62,17 +62,24 @@ func WithReconnectBackoff(maxBackoff time.Duration) WSOption {
 		var (
 			count int
 		)
+		// maxShift bounds the exponent. Past ~20 the doubled delay already
+		// exceeds any sane maxBackoff and is clamped anyway. Unbounded, the
+		// shift overflows to a negative duration at attempt 63 and the timer
+		// constructor panics: at a 30s maxBackoff that is roughly half an hour
+		// of a remote being unreachable before the process dies.
+		const maxShift = 20
+
 		c.shouldReconnect = func(err error) bool {
-			count++
+			if count < maxShift {
+				count++
+			}
 			mills := rand.Intn(maxMillis-minMillis) + minMillis
 			d := time.Millisecond * time.Duration((1<<uint(count))+mills)
 			if d > maxBackoff {
 				d = maxBackoff
 			}
-			t := time.NewTicker(d)
 			c.logger.Info("reconnect backoff", "duration", d.String())
-			<-t.C
-			t.Stop()
+			<-time.After(d)
 			return true
 		}
 	}
